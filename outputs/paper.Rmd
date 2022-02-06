@@ -1,6 +1,6 @@
 ---
-title: "Toronto Bike Share is one size but doesn't fit all"
-subtitle: "Annual and casual riders are clearly differentiated but are served the same Bike Share experience"
+title: "Toronto's Bike Share program is one size but does not fit all"
+subtitle: "Annual and casual riders are have differentiated needs and use cases but are served the same Bike Share experience"
 author: 
   - Hudson Yuen
 date: "`r format(Sys.time(), '%d %B %Y')`"
@@ -8,6 +8,7 @@ abstract: "Bike Share programs bring clear health and environmental benefits to 
 output:
   bookdown::pdf_document2
 toc: FALSE
+thanks: "All data and scripts available at https://github.com/hudyu17/bikeshare"
 fig_caption: yes
 bibliography: references.bib
 ---
@@ -26,11 +27,11 @@ library(kableExtra)
 ```
 
 # Introduction
-Cities are an integral part of a sustainable future, with transportation being a key area of improvement towards reaching net zero carbon emissions. Urban mobility is a critical aspect of this transition; road traffic accounts for around 80% of carbon emissions from transportation [@citeUrban]. Bikeshare programs have therefore been touted as one of many tools that cities to employ, taking cars off the road while providing other mental and physical health benefits [@citeNature]. Despite being a major population centre, Toronto was not the first Canadian city to implement bikeshare (hereafter referred to as “Bike Share”); it also ranks 4th out of 5 Canadian cities in terms of the percentage of total population living within bike sharing service areas [@citeProgram]. 
+Cities are an integral part of a sustainable future, with transportation being a key area of improvement towards reaching net zero carbon emissions. Urban mobility is a critical aspect of this transition; road traffic accounts for around 80% of carbon emissions from transportation [@citeUrban]. Bikeshare programs have therefore been touted as one of many tools that cities to employ, taking cars off the road while providing other mental and physical health benefits [@citeNature]. Toronto has run a substantial bikeshare network since 2011 (hereafter referred to as “Bike Share”), but also lowly amongst Canadian cities in terms of the percentage of total population living within bike sharing service areas [@citeProgram]. 
 
 The data surrounding Bike Share is indispensable in helping improve the program and other pieces of sustainable urban infrastructure. Understanding who uses the system, for what purposes, and in what ways can help the city improve the experience and attract more riders. Both annual and casual riders are integral to the vitality of the network; however, they have substantially different use cases that are arguably not well-served by the current “one-size-fits-all” approach. There is little differentiation between the 2 ridership segments other than pricing, leading to casual riders facing unnecessary pain points and potentially discouraging further use. 
 
-There is immense growth potential with Bike Share, given that only 18% of Toronto’s population are within service areas [@citeProgram]. Improving the current experience could greatly aid update of the program, whether that be through new initiatives - such as lockers for commuters - or more lenient time limitations for day-trippers. It is imperative that such improvements are made with consideration of two distinct rider segments, as serving both groups is key to building a strong and sustainable program. 
+There is immense growth potential with Bike Share, given that only 18% of Toronto’s population were within service areas as recently as 2018 [@citeProgram]. Improving the current experience could greatly aid update of the program, whether that be through new initiatives - such as lockers for commuters - or more lenient time limitations for day-trippers. It is imperative that such improvements are made with consideration of two distinct rider segments, as serving both groups is key to building a strong and sustainable program. 
 
 The remainder of this paper is structured as follows: Section \@ref(data) covers the data source and analysis methodology employed. Section \@ref(discussion) then examines key dimensions of the data, proposing conclusions and areas of further exploration. 
 
@@ -54,19 +55,19 @@ Barring errors, the original dataset covers all rides undertaken on the Toronto 
 
 Note that extracting data across multiple years is cumbersome, and the months of January to May 2021 feature large swaths of missing data. It was also difficult to match station IDs to geographical coordinates, requiring joins with data from other APIs that proved unreliable.  
 
-`R` [@citeR] was the language and environment used for the bulk of this analysis, alongside the `tidyverse` [@citeTidy], `janitor` [@citeJanitor], `dplyr` [@citeDplyr], and `data table` [@citeDT] packages. My workflow began with the `data-cleaning.R` script; data was downloaded using the `opendatatoronto` package and cleaned as follows:
+`R` [@citeR] was the language and environment used for the bulk of this analysis, alongside the `tidyverse` [@citeTidy], `janitor` [@citeJanitor], `dplyr` [@citeDplyr], `kableExtra` [@citeKableExtra], and `data table` [@citeDT] packages. My workflow began with the `data-cleaning.R` script; data was downloaded using the `opendatatoronto` package and cleaned as follows:
 
   - Renaming columns - e.g. “Trip..Duration” to “trip_duration”
   - Removing outliers - trips less than 2 minutes or more than 37 hours in length, the latter based on Q3 + 1.5 x IQR
-  - Populating NULL station names based on existing name/ID pairs in the dataset
-  - Removing other NULL values
+  - Populating `NULL` station names based on existing name/ID pairs in the dataset
+  - Removing other `NULL` values
 
 The result was saved to `toronto-bikes-clean.csv` and brought into `data-exploration.Rmd`. Exploratory analysis revealed interesting summary differences when segmenting by user types, forming the basis for further investigation.
 
 ## Data Characteristics
-The initial cleaned dataset shows data associated with each ride; a subset of rows and columns can be seen in Table \@ref(tab:dataset) below.
+The initial cleaned dataset shows data associated with each ride; a subset of rows and columns can be seen in Table \@ref(tab:dataset) below. This analysis dataset contains anonymised trip data from approximately 2.53 million rides across 7 months of activity.
 
-```{r dataset, fig.cap="Subset of initial dataset", echo=FALSE}
+```{r dataset, echo=FALSE}
 head(df_bikes[, c("trip_duration", "start_station_name", "user_type")]) %>%
   kable(
     caption = "Subset of initial dataset",
@@ -75,14 +76,59 @@ head(df_bikes[, c("trip_duration", "start_station_name", "user_type")]) %>%
   kable_styling(latex_options = "HOLD_position")
 ```
 
-put some text here
+The key metrics of ride quantity, trip duration, and start station density were summarised and segmented by user type in tables \@ref(tab:quantity), \@ref(tab:duration-tab), and \@ref(tab:density) respectively. Although not statistically tested, the difference between segments was large enough to warrant further exploration. 
+
+```{r quantity, fig.cap="Total number of rides by user type", echo=FALSE}
+kable(
+  df_bikes[, .N, by=user_type], 
+  col.names = c("User Type", "Total number of rides"), 
+  caption = "Total number of rides by user type",
+  linesep = ""
+) %>%
+kable_styling(latex_options = "HOLD_position")
+```
+
+```{r duration-tab, echo=FALSE}
+kable(
+  df_bikes[, lapply(.SD, mean, na.rm=TRUE), by=user_type, .SDcols=c("trip_duration")][, trip_duration / 60, user_type], 
+  caption = "Total number of rides by user type", 
+  col.names = c("User Type", "Average duration (minutes)"), 
+  linesep = ""
+) %>%
+kable_styling(latex_options = "HOLD_position")
+```
+
+```{r density, echo=FALSE}
+casual_rides <- df_bikes[user_type == 'Casual Member', .N, by=start_station_name][order(-N)]
+annual_rides <- df_bikes[user_type == 'Annual Member', .N, by=start_station_name][order(-N)]
+
+casual_rides <- setnames(casual_rides, 'N', 'casual_rides')
+annual_rides <- setnames(annual_rides, 'N', 'annual_rides')
+
+setkey(casual_rides, start_station_name)
+setkey(annual_rides, start_station_name)
+
+all_rides <- casual_rides[annual_rides, nomatch = 0]
+all_rides[, casual_annual_ratio := casual_rides/annual_rides]
+tab_rides <- all_rides[order(casual_annual_ratio)][1:10]
+
+kable(
+  tab_rides[,casual_annual_ratio:=NULL], 
+  col.names = c("Start Station", "Number of casual rides", "Number of annual rides"), 
+  caption = "Top 10 most annual-dense start stations",
+  linesep = ""
+) %>%
+kable_styling(latex_options = "HOLD_position")
+```
+
+\newpage
 
 # Discussion
 
 ## Number of rides
-While annual riders account for more overall rides than casual riders, annual-rider activity appears to peak before casual riders. This was an unexpected finding; I assumed that annual riders would be more likely to have Bike Share woven into their routines, making them less responsive to factors like colder temperatures. Given the steep drop off in annual rides around early October, there may have been external events within the city that affected this segment more than casual riders; changes in return-to-office policies come to mind. Viewing historical data may provide another perspective on this specific point. 
+While annual riders account for more overall rides than casual riders, annual-rider activity appears to peak before casual riders as seen in Figure \@ref(fig:size). This was an unexpected finding; I assumed that annual riders would be more likely to have Bike Share woven into their routines, making them less responsive to factors like colder temperatures. Given the steep drop off in annual rides around early October, there may have been external events within the city that affected this segment more than casual riders; changes in return-to-office policies come to mind. Viewing historical data may provide another perspective on this specific point. 
 
-```{r duration, fig.cap="duration", echo=FALSE}
+```{r size, fig.cap="Total number of rides by user type", echo=FALSE}
 df_bikes[, month := month(start_time)]
 df_bikes[, week := week(start_time)]
 df_bikes[, day := as.Date(start_time)]
@@ -102,38 +148,73 @@ all_weeks <- casual_week[annual_week, nomatch = 0]
 plot (df_bikes[week > 22, .N, by=c("week", "user_type")] %>%
   ggplot(aes(x=week, y=N, group=user_type)) + 
   geom_line(aes(color=user_type)) + 
-  scale_color_grey() + 
-  theme_classic()) 
+  ylab("Number of rides") + 
+  xlab("Week") +
+  scale_color_grey("User Type") + 
+  theme_classic() 
+  ) 
 ```
 
+
 ## Trip Duration
-I was curious to explore trip duration in depth, but realised that Bike Share’s time limits - where users must dock their bikes within either 30 or 45 minutes of their start time to prevent accruing additional charges - would heavily skew results towards shorter durations. In a potentially confusing move, a 45-minute option was added to the historical 30-minute limit for some memberships in June of 2021, right at the beginning of this dataset ([link](https://nowtoronto.com/news/times-up-for-bike-share-toronto-riders)). Rider behaviour may therefore still reflect the old half-hour limit; I was not aware of this change before researching it specifically. 
+I was curious to explore trip duration in depth, but realised that Bike Share’s time limits - where users must dock their bikes within either 30 or 45 minutes of their start time to prevent accruing additional charges - would heavily skew results towards shorter durations. In a potentially confusing move, a 45-minute option was added to the historical 30-minute limit for some memberships in June of 2021, right at the beginning of this dataset [@citeNow]. Rider behaviour may therefore still reflect the old half-hour limit; I was not aware of this change before researching it specifically. 
 
 Whilst most bike commutes will be under this limit, this rule masks the true duration of casual trips; for example, a casual user may take ~1.5 hours to bike along the waterfront, but will dock and undock their bike 2 additional times within that time window. This shows up as 3 separate trips in the data and significantly reduces duration-based metrics, as the average trip duration for that user will be under 30 minutes when they used the bike for 3 times that in reality. 
 
-Figure __ below shows a histogram of trip durations segmented by annual and casual users. While casual rides are longer on average, one can see an unnatural drop off in rides at the 30-minute mark; this implies that users are artificially cutting their rides short to dock their bikes, meaning that true trip durations could easily be longer. 
+Figure \@ref(fig:histogram) below shows a histogram of trip durations segmented by annual and casual users. While casual rides are longer on average, one can see an unnatural drop off in rides at the 30-minute mark; this implies that users are artificially cutting their rides short to dock their bikes, meaning that true trip durations could easily be longer. 
 
-<show histogram here with seconds to minutes>
+```{r histogram, fig.cap="Histogram of ride duration by user type", echo=FALSE}
+plot(df_bikes %>%
+  ggplot(aes(x=trip_duration, fill=user_type)) + 
+  geom_histogram(position="identity", alpha=0.6, bins = 75) + 
+  ylab('Count of rides') + 
+  xlab('Trip Duration (minutes)') +
+  scale_x_time() + 
+  scale_fill_manual('User Type', values=c("Annual Member" = "#bebebe", "Casual Member" = "#2a2a2a")) +
+  theme_classic())
+```
 
-This provides interesting implications when considering improving the Bike Share experience for casual users. Having to cut a ride short to find a station, dock, re-enter payment information, undock, before being able to continue is undoubtedly unpleasant - something that I have also experienced first hand ([link](https://www.thestar.com/opinion/contributors/2020/08/24/bike-share-toronto-is-finally-thriving-and-those-electric-bikes-are-awesome-too.html)). It might even discourage riders from fully utilising Toronto’s extensive bikeshare network. Could there be a “casual pass” for these riders, or an extension to a 1 hour time limit? This would tackle a key pain point of the casual experience, perhaps encouraging riders to engage with an annual pass. 
 
-Another interesting trend was the decrease in trip duration as the year progressed, demonstrated below in Figure ___. This behaviour is expected, but casual riders exhibit a much steeper drop off. This is partly due to the higher average duration of casual riders, but also reveals the elasticity of casual demand based on what are likely weather-related factors. 
+This provides interesting implications when considering improving the Bike Share experience for casual users. Having to cut a ride short to find a station, dock, re-enter payment information, undock, before being able to continue is undoubtedly unpleasant - something that I have also experienced first hand [@citeStar]. It might even discourage riders from fully utilising Toronto’s extensive bikeshare network. Could there be a “casual pass” for these riders, or an extension to a 1 hour time limit? This would tackle a key pain point of the casual experience, perhaps encouraging riders to engage with an annual pass. 
 
-<show week chart>
+Another interesting trend was the decrease in trip duration as the year progressed, demonstrated below in Figure \@ref(fig:duration). This behaviour is expected, but casual riders exhibit a much steeper drop off. This is partly due to the higher average duration of casual riders, but also reveals the elasticity of casual demand based on what are likely weather-related factors. Note the steep climb in average casual rider duration towards the very end of the year. This may be a 2021-specific trend, so examining data from previous years would be helpful, but it suggests increased activity around the holiday period. Perhaps this natural demand can be encouraged by Bike Share with holiday-specific promotions, or more attention can be placed on ensuring that bike lanes around popular casual areas remain accessible and clear of snow.
 
-Note the steep climb in average casual rider duration towards the very end of the year. This may be a 2021-specific trend, so examining data from previous years would be helpful, but it suggests increased activity around the holiday period. Perhaps this natural demand can be encouraged by Bike Share with holiday-specific promotions, or more attention can be placed on ensuring that bike lanes around popular casual areas remain accessible and clear of snow.
+```{r duration, fig.cap="Average trip duration by user type", echo=FALSE}
+plot(df_bikes[week > 22, lapply(.SD, mean, na.rm=TRUE), by=c("week", "user_type"), .SDcols=c("trip_duration") ]  %>%
+  ggplot(aes(x=week, y=trip_duration, group=user_type)) + 
+  geom_line(aes(color=user_type)) + 
+  ylab("Average Trip Duration (minutes)") + 
+  xlab("Week") +
+  scale_y_time() +
+  scale_color_grey("User Type") + 
+  theme_classic()) 
+```
+
 
 ## Location Hotspots
-8 of the top 10 most popular bike stations are along the waterfront, where an extensive bike trail has meant safe and pleasant riding for regular and casual riders alike - since even before this century ([link](https://www.proquest.com/docview/224866226/citation/6DF7549E07C4343PQ/1?accountid=14771)). 
+8 of the top 10 most popular bike stations are along the waterfront, where an extensive bike trail has meant safe and pleasant riding for regular and casual riders alike - since even before this century [@citeModes]. Segmenting station popularity by user type reveals a network dominated by annual riders, adding detail to how Bike Share is being utilised around the city. The top 10 most trafficked station-user type pairs are split evenly between annual and casual riders, but the next 40 are dominated by annual riders. Ranking starting stations by the ratio of casual:annual riders then reveals that certain areas are clearly “annual-only” or “casual-only”. This is demonstrated by figures \@ref(fig:annual) and \@ref(fig:casual), showing the top 20 stations for annual and casual ridership density respectively (density calculated as the ratio between user types). Both maps are produced courtesy of `OpenStreetMap` [@citeOSM].
 
-<image of waterfront bike trails>
+```{r annual, fig.cap="Top 20 start stations by annual rider density", out.width = "49%", fig.show='hold', fig.align='center', echo=FALSE}
+# ![Alt text](../inputs/topannual.PNG)
+knitr::include_graphics(here::here("annual", "../inputs/topannual.PNG"))
+```
 
-Segmenting station popularity by user type reveals a network dominated by annual riders, adding detail to how Bike Share is being utilised around the city. The top 10 most trafficked station-user type pairs are split evenly between annual and casual riders, but the next 40 are dominated by annual riders. Ranking starting stations by the ratio of casual:annual riders then reveals that certain areas are clearly “casual-only” or “annual-only”. This is demonstrated by figures __ and __, showing the top 20 stations for casual and annual ridership density respectively (density calculated as the ratio between user types). 
+```{r casual, fig.cap="Top 20 start stations by casual rider density", out.width = "49%", fig.show='hold', fig.align='center', echo=FALSE}
+# ![Alt text](../inputs/topannual.PNG)
+knitr::include_graphics(here::here("casual", "../inputs/topcasual.PNG"))
+```
 
-<insert maps>
-
-This stark difference raises several possible areas of exploration. Above all, **I’m interested in knowing whether or not this network duality is intentional. I feel that Bike Share must acknowledge these dynamics as natural behaviour, and I would therefore like to dive deeper into how these two segments can be better served in their respective regions. 
+This stark difference raises several possible areas of exploration. Above all, I am interested in knowing whether or not this network duality is intentional. I feel that Bike Share must acknowledge these dynamics as natural behaviour, and I would therefore like to dive deeper into how these two segments can be better served in their respective regions. 
 
 Take the station at King’s College Crescent on our own UofT campus; given that just 20% of rides originating here are by casual riders, are there commuter-friendly actions that can be implemented? Apart from introducing potentially exciting features, such as lockers, simple actions such as ensuring that sufficient bikes are available at this station during peak hours can greatly aid annual riders who rely on Bike Share for commuting.
+
+\newpage
+
+# Conclusions
+There is a clear distinction between how annual and casual riders use Bike Share, but both segments are largely served the same experience. As Toronto emerges from pandemic lockdowns and strives for a sustainable future, clean urban mobility solutions like Bike Share can be refined and improved to encourage greater adoption. Immediate findings from this analysis point to a restrictive and possibly confusing single-ride time limit, where riders must dock within 30 or 45 minutes of starting a specific segment. “Casual-only” or “annual-only” hotspots are also revealed, painting a clear picture of who is using the network at what location and spurring thoughts about what their needs could be. 
+
+Going forward, it is important to examine historical data beyond 2021; this will help determine whether the trends in this dataset are annual occurrences or a COVID-specific blip. The pattern of increasing ride duration at the very end of 2021 from casual riders is one potential anomaly, for example.
+
+\newpage
 
 # References

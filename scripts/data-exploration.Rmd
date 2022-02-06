@@ -75,8 +75,10 @@ df_bikes[week > 22, .N, by=c("week", "user_type")] %>%
 df_bikes[week > 22, lapply(.SD, mean, na.rm=TRUE), by=c("week", "user_type"), .SDcols=c("trip_duration") ]  %>%
   ggplot(aes(x=week, y=trip_duration, group=user_type)) + 
   geom_line(aes(color=user_type)) + 
-  scale_color_grey() + 
-  theme_classic()
+  ylab("Average Trip Duration") + 
+  xlab("Week") +
+  scale_color_grey("User Type") + 
+  theme_classic() 
 
 ```
 
@@ -104,7 +106,7 @@ setkey(annual_rides, start_station_name)
 all_rides <- casual_rides[annual_rides, nomatch = 0]
 all_rides[, casual_annual_ratio := casual_rides/annual_rides]
 
-all_rides[order(-casual_annual_ratio)]
+all_rides[order(casual_annual_ratio)][1:10]
 
 # second highest annual ratio is on campus!
 ```
@@ -114,12 +116,18 @@ all_rides[order(-casual_annual_ratio)]
 # segmenting by user type
 
 # avg duration by user type
-df_bikes[, lapply(.SD, mean, na.rm=TRUE), by=user_type, .SDcols=c("trip_duration") ] 
+df_bikes[, lapply(.SD, mean, na.rm=TRUE), by=user_type, .SDcols=c("trip_duration")][, trip_duration / 60, user_type] 
+
 
 ## casual durations are slighty longer
 df_bikes %>%
   ggplot(aes(x=trip_duration, fill=user_type)) + 
-  geom_histogram(position="identity", alpha=0.6, bins = 75)
+  geom_histogram(position="identity", alpha=0.6, bins = 75) + 
+  ylab('Count of rides') + 
+  xlab('Trip Duration') +
+  scale_x_time() + 
+  scale_fill_manual('User Type', values=c("Casual Member" = "#bebebe", "Annual Member" = "#2a2a2a")) +
+  theme_classic() 
 
 # num rides by user type
 df_bikes[, .N, by=user_type] 
