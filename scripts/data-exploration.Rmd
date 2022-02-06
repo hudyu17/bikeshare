@@ -1,0 +1,127 @@
+---
+title: "Toronto Bikeshare"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#### Preamble ####
+# Purpose: Explore data about Toronto bikeshare rides from June-Dec 2021
+# Author: Hudson Yuen
+# Data: 15 January 2021
+# Contact: hudson.yuen@mail.utoronto.ca
+
+library(knitr)
+library(janitor)
+library(lubridate)
+library(opendatatoronto)
+library(tidyverse)
+library(tidyr)
+library(data.table)
+library(dplyr)
+```
+
+
+```{r}
+#### Explore ####
+df_bikes <- data.table(
+  read_csv(
+    "../inputs/toronto-bikes-clean.csv",
+    col_types = ,
+    show_col_types = FALSE
+    )
+)
+df_bikes <- df_bikes[month(start_time) > 1, ] # removing January 2022 
+head(df_bikes)
+```
+
+```{r}
+# Trip duration by month
+by_month <- df_bikes %>% group_by(month(start_time))
+by_month <- by_month %>% summarise(
+  duration = mean(trip_duration),
+  num_trips = n()
+)
+setnames(by_month, 'month(start_time)', 'month')
+by_month
+
+df_bikes[, month := month(start_time)]
+df_bikes[, week := week(start_time)]
+df_bikes[, day := as.Date(start_time)]
+
+casual_week <- df_bikes[user_type == 'Casual Member', .N, by="week"] 
+annual_week <- df_bikes[user_type == 'Annual Member', .N, by="week"] 
+
+casual_week <- setnames(casual_week, 'N', 'casual_rides')
+annual_week <- setnames(annual_week, 'N', 'annual_rides')
+
+setkey(casual_week, week)
+setkey(annual_week, week)
+
+all_weeks <- casual_week[annual_week, nomatch = 0]
+all_weeks
+
+## members dropped off sooner, not sure why
+df_bikes[week > 22, .N, by=c("week", "user_type")] %>%
+  ggplot(aes(x=week, y=N, group=user_type)) + 
+  geom_line(aes(color=user_type)) + 
+  scale_color_grey() + 
+  theme_classic()
+
+## annual = much shorter duration with less absolute drop off
+df_bikes[week > 22, lapply(.SD, mean, na.rm=TRUE), by=c("week", "user_type"), .SDcols=c("trip_duration") ]  %>%
+  ggplot(aes(x=week, y=trip_duration, group=user_type)) + 
+  geom_line(aes(color=user_type)) + 
+  scale_color_grey() + 
+  theme_classic()
+
+```
+
+```{r}
+# location
+num_rides <- df_bikes[, .N, by=start_station_name][order(-N)][, N]
+ggplot() + geom_histogram(aes(num_rides))
+
+split_df <- df_bikes[, .N, by=c("start_station_name", "user_type")][order(-N)]
+split_df
+split_df[user_type == 'Casual Member']
+
+df_bikes[start_station_name == 'Dundas St E / Regent Park Blvd', .N, by=c("start_station_name", "user_type")][order(-N)]
+
+# can we find the % difference in rides between user types, then find the stations with largest diff?
+casual_rides <- df_bikes[user_type == 'Casual Member', .N, by=start_station_name][order(-N)]
+annual_rides <- df_bikes[user_type == 'Annual Member', .N, by=start_station_name][order(-N)]
+
+casual_rides <- setnames(casual_rides, 'N', 'casual_rides')
+annual_rides <- setnames(annual_rides, 'N', 'annual_rides')
+
+setkey(casual_rides, start_station_name)
+setkey(annual_rides, start_station_name)
+
+all_rides <- casual_rides[annual_rides, nomatch = 0]
+all_rides[, casual_annual_ratio := casual_rides/annual_rides]
+
+all_rides[order(-casual_annual_ratio)]
+
+# second highest annual ratio is on campus!
+```
+
+
+```{r}
+# segmenting by user type
+
+# avg duration by user type
+df_bikes[, lapply(.SD, mean, na.rm=TRUE), by=user_type, .SDcols=c("trip_duration") ] 
+
+## casual durations are slighty longer
+df_bikes %>%
+  ggplot(aes(x=trip_duration, fill=user_type)) + 
+  geom_histogram(position="identity", alpha=0.6, bins = 75)
+
+# num rides by user type
+df_bikes[, .N, by=user_type] 
+```
+
